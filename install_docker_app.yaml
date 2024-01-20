@@ -1,0 +1,73 @@
+---
+- name: Install Docker and and run movie app in container
+  hosts: app_nodes
+  become: true
+  vars:
+    github_repo_url: "https://github.com/AmeliaLis/itv_project"
+
+  tasks:
+    - name: Install git
+      dnf:
+        name: git
+        state: present
+
+    - name: Install docker
+      dnf:
+        name: docker
+        state: present
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Save Docker version to a variable
+      command: docker --version
+      register: docker_version_output
+
+    - name: Display Docker version
+      debug:
+        var: docker_version_output.stdout_lines
+
+    - name: Get Docker service status
+      command: docker ps
+      register: docker_status
+
+    - name: Display Docker service status
+      debug:
+        var: docker_status
+
+    - name: Add user to the docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    # - name: Pull Nginx image
+    #   command: docker pull nginx:latest
+
+    # - name: Start Nginx container
+    #   command: sudo docker run -d --name my_nginx -p 80:80 nginx:latest
+    #   register: nginx_container_output
+      
+    - name: Clone GitHub repository
+      git:
+        repo: "{{ github_repo_url }}"
+        dest: "/opt/itv"
+
+    - name: copy .env
+      template:
+        src: templates/.env
+        dest: /opt/itv/.env
+        
+    - name: copy env.js
+      template:
+        src: templates/env.js
+        dest: /opt/itv/src/env.js
+
+    - name: Build Docker image
+      command: sudo docker build -t itv:1.0 /opt/itv/
+
+    - name: Run Docker container
+      command: sudo docker run -d --name itv_project -p 8080:8080 itv:1.0
